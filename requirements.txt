@@ -1,0 +1,7 @@
+requests
+python-dateutil
+pandas
+pikepdf
+PyPDF2
+tqdm
+bs4
