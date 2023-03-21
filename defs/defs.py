@@ -109,14 +109,11 @@ def get_file(download_dir, txt_dir, ref, url, logger, df_full, df, no, new_doc_c
             f_html.write(ufr.content)  # записываем содержимое в файл
             f_html.close()
 
-            f_txt = open(str(Path(txt_dir, txt_file_name)), "w",
-                         encoding='UTF-8')  # открываем txt файл для записи в txt_dir,  wb
             soup = BeautifulSoup(ufr.content.decode('utf-8'), 'lxml')
-            text_content = soup.get_text().replace('\n', '').replace('\t', '').replace('\xa0', ' ')
-            f_txt.write(text_content)
-            f_txt.close()
-
-            # Проверяем, есть ли На странице элемент abstract
+            text_content = soup.get_text()
+            e = ''
+            numbers = []
+            splitter = ''
             if 'Abstract' in text_content:
 
                 if "<h3>Abstract</h3>" in str(soup):
@@ -125,13 +122,15 @@ def get_file(download_dir, txt_dir, ref, url, logger, df_full, df, no, new_doc_c
                     e = 'h2'
                 elif "<h1>Abstract</h1>" in str(soup):
                     e = 'h1'
-                elif "Abstract" in soup.find(id == re.compile('abstract')).find('a').text:
+
+                elif soup.find(id == re.compile('abstract')).find('a').text == "Abstract":
                     # Определим имя тэга вокруг ссылки
                     e = soup.find(id == re.compile('abstract')).find('a').parent.name
-
+                else:
+                    e = soup.find(id == re.compile('abstract')).find('a').parent.name
                 # Выбираем на странице все фрагменты с тэгами e и формируем из них разделитель
                 h_abstract = soup.find('body').find_all(e)
-                splitter = ''
+
                 for h in h_abstract:
                     splitter = splitter + str(h) + '|'
                 splitter = splitter[:-1]
@@ -139,12 +138,14 @@ def get_file(download_dir, txt_dir, ref, url, logger, df_full, df, no, new_doc_c
                 # Определим номера частей с активными спецификациями и сохраним их в списке numbers
                 numbers = []
                 for i in range(len(h_abstract)):
-                    if len(re.findall('Abstract', str(h_abstract[i]))) != 0:
+                    if len(re.findall('Abstract', str(h_abstract[i]))) != 0 and len(
+                            re.findall('Abstract Flow', str(h_abstract[i]))) == 0:
                         numbers.append(i)
 
             elif 'Introduction' in text_content:
+
                 # нужно заготовить сплиттер для Introduction
-                # if f_name in ['openid-financial-api-part-1-1_0.html', 'openid-financial-api-part-2-1_0.html']:
+
                 if "<h3>Introduction</h3>" in str(soup):
                     e = 'h3'
                     h_abstract = soup.find('body').find_all(e)
@@ -152,17 +153,15 @@ def get_file(download_dir, txt_dir, ref, url, logger, df_full, df, no, new_doc_c
                     for h in h_abstract:
                         splitter = splitter + str(h) + '|'
                     splitter = splitter[:-1]
-                    # print('splitter= ', splitter)
 
-                    # Определим номера частей с активными специйикациями и сохраним их в списке numbers
+                    # Определим номера частей с активными спецификациями и сохраним их в списке numbers
                     numbers = []
                     for i in range(len(h_abstract)):
-                        if len(re.findall('Introduction', str(h_abstract[i]))) != 0:
+                        if len(re.findall("<h3>Introduction</h3>", str(h_abstract[i]))) != 0:
                             numbers.append(i)
-                    # print('numbers =', numbers)
+
                 elif 'id="section-1-1"' in str(soup):
                     e = 'section-1-1'
-                # print('Introduction')
 
             # Разделим текст body с помощью сплиттера, если это не Introduction с ссылками
             text = str(soup.body)
@@ -177,20 +176,60 @@ def get_file(download_dir, txt_dir, ref, url, logger, df_full, df, no, new_doc_c
                         results.append(element)
 
                 abstracts = []
+
                 for number in numbers:
-                    paragrafs = BeautifulSoup(results[number + 1], 'lxml').find_all('p')
+                    paragrafs = BeautifulSoup(results[number + 1], 'lxml').find_all(re.compile('p|li'))
                     for p in paragrafs:
-                        abstracts.append(p.text)
-                abstract = ' '.join(abstracts).replace('\n', '').replace('\t', '')
-                if f_name in ['openid-financial-api-part-1-1_0.html', 'openid-financial-api-part-2-1_0.html']:
-                    print(f_name)
-                    print(e, numbers)
-                    print(paragrafs)
-                    print(abstracts)
-                    print(abstract)
+                        # print(p)
+                        if str(p.text) != '' and (not ('href' in str(p))):
+                            abstracts.append(p.text)
+                abstract = ' '.join(abstracts)
 
             else:
-                abstract = soup.body.find('p', id='section-1-1').text.replace('\n', '').replace('\t', '')
+                abstract = soup.body.find('p', id='section-1-1').text
+
+            toc = ''
+            if len(soup.find_all(id='toc')) > 0:
+                divs = soup.find_all(id='toc')
+
+            elif len(soup.find_all(class_='toc')) > 0:
+                divs = soup.find_all(class_='toc')
+
+            elif len(soup.find_all(id=re.compile('toc'))) > 0:
+                divs = soup.find_all(id=re.compile('toc'))
+
+            else:
+                divs = [] # toc не найден
+
+            for div in divs:
+                toc = toc.join(str(div.text))
+
+            abstract = abstract.replace('\n', ' ').replace('\t', ' ').replace("¶", " ").replace("▲", " ").replace(
+                '\xa0', ' ')
+            while '  ' in abstract:
+                abstract = abstract.replace('  ', ' ')
+
+            toc = toc.replace('\n', ' ').replace('\t', ' ').replace("¶", " ").replace("▲", " ").replace('\xa0', ' ')
+            while '  ' in toc:
+                toc = toc.replace('  ', ' ')
+
+            text_content = text_content.replace('\n', ' ').replace('\t', ' ').replace("¶", " ").replace("▲",
+                                                                                                        " ").replace(
+                '\xa0', ' ')
+
+            #  Из текста нужно удалить abstract (introduction) и содержание
+            while '  ' in text_content:
+                text_content = text_content.replace('  ', ' ')
+
+            # Убираем из текста abstract и toc
+
+            text_content = text_content.replace(abstract, '').replace('Abstract', '')
+            text_content = text_content.replace(toc, '').replace('Table of Contents', '')
+
+            # записываем текст в текстовый файл
+            f_txt = open(str(Path(txt_dir, txt_file_name)), "w", encoding='UTF-8')  # открываем txt файл для записи
+            f_txt.write(text_content)
+            f_txt.close()
 
             if os.path.isfile(str(Path(download_dir, f_name))):
                 logger.info(f'Файл по ссылке {ref} загружен в {download_dir}')
@@ -204,6 +243,7 @@ def get_file(download_dir, txt_dir, ref, url, logger, df_full, df, no, new_doc_c
             else:
                 logger.exception(f'Файл  по ссылке {ref} не загружен')
             load_flag = True
+
             # вносим записи в сеансовый и общий датафремы
             df_full.loc[len(df_full.index)] = [no, f_name, content_length, last_modified, abstract, ref, local_link,
                                                load_date, '']
@@ -245,8 +285,8 @@ def get_refs(url, logger):
     if response.status_code == 200:
         soup = BeautifulSoup(response.content.decode('utf-8'), 'lxml')
         # Нам придется разбить текст фрагмента на части и взять часть с активными спецификациями. Разбивать будем по тэгам h2
-        # Нам нужны только действующие спецификации, а не черновики или устаревшие. Поэтому если
-        # ссылки лежат под заголовком draft или obsolete, то они не нужны
+        # Нам нужны только действующие спецификации и черновики, устаревшие не берем. Поэтому если
+        # ссылки лежат под заголовком Obsolete|Active Drafts|Inactive Drafts, то они не нужны
         h2s = soup.find_all('div', class_='entry-content')[0].find_all('h2')
         text = str(soup.find_all('div', class_='entry-content')[0])
 
@@ -255,16 +295,27 @@ def get_refs(url, logger):
             splitter = splitter + str(h2) + '|'
         splitter = splitter[:-1]
         results = re.split(splitter, text)
-        # Определим номера частей с активными специйикациями и сохраним их в списке numbers
+        # Определим номера частей с активными спецификациями и сохраним их в списке numbers
         numbers = []
         for i in range(len(h2s)):
-            if len(re.findall('Drafts|Obsolete', str(h2s[i]))) == 0:
+            if len(re.findall('Obsolete|Active Drafts|Inactive Drafts', str(h2s[i]))) == 0:
                 numbers.append(i)
 
         for number in numbers:
             links = BeautifulSoup(results[number + 1], 'lxml').find_all('li')
+            # for link in links:
+            #     refs.append(link.find('a')['href'])
+            new_refs = []
             for link in links:
-                refs.append(link.find('a')['href'])
+                if len(re.findall('See the', link.text)) == 0:
+                #     print('Время собирать ссылки')
+                #     print(link.text)
+                #     print(link.find('a')['href'])
+                #     new_refs = get_refs(str(link.find('a')['href']), logger)
+                #     for element in new_refs:
+                #         refs.append(element.find('a')['href'])
+                # else:
+                    refs.append(link.find('a')['href'])
     else:
         logger.error('Ошибка загрузки')
     return refs
