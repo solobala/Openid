@@ -258,7 +258,7 @@ def get_file(download_dir, txt_dir, ref, url, logger, df_full, df, no, new_doc_c
             load_flag = True
 
             # вносим записи в сеансовый и общий датафремы
-            print(len(abstract))
+
             df_full.loc[len(df_full.index)] = [no, f_name, content_length, last_modified, abstract, ref, local_link,
                                                load_date, '']
             df.loc[len(df_full.index)] = [no, f_name, content_length, last_modified, abstract, ref, local_link,
