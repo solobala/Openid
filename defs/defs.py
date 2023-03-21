@@ -98,6 +98,7 @@ def get_file(download_dir, txt_dir, ref, url, logger, df_full, df, no, new_doc_c
         ufr = requests.get(ref)  # делаем запрос
 
         if ufr.status_code == 200:
+
             # Сохраняем html - файл
             f_name = ref.replace(url + '/', '')
             txt_file_name = f_name.split('.')[0] + '.txt'
@@ -114,28 +115,35 @@ def get_file(download_dir, txt_dir, ref, url, logger, df_full, df, no, new_doc_c
             e = ''
             numbers = []
             splitter = ''
+
+            # Для заполнения abstract нужен текст из Abstract или Introduction
             if 'Abstract' in text_content:
 
                 if "<h3>Abstract</h3>" in str(soup):
                     e = 'h3'
+
                 elif "<h2>Abstract</h2>" in str(soup):
                     e = 'h2'
+
                 elif "<h1>Abstract</h1>" in str(soup):
                     e = 'h1'
 
                 elif soup.find(id == re.compile('abstract')).find('a').text == "Abstract":
                     # Определим имя тэга вокруг ссылки
                     e = soup.find(id == re.compile('abstract')).find('a').parent.name
+
                 else:
                     e = soup.find(id == re.compile('abstract')).find('a').parent.name
+
                 # Выбираем на странице все фрагменты с тэгами e и формируем из них разделитель
                 h_abstract = soup.find('body').find_all(e)
+                splitter = ''
 
                 for h in h_abstract:
                     splitter = splitter + str(h) + '|'
                 splitter = splitter[:-1]
 
-                # Определим номера частей с активными спецификациями и сохраним их в списке numbers
+                # Разделим текст на части, Определим части с активными спецификациями и сохраним их в списке numbers
                 numbers = []
                 for i in range(len(h_abstract)):
                     if len(re.findall('Abstract', str(h_abstract[i]))) != 0 and len(
@@ -143,7 +151,6 @@ def get_file(download_dir, txt_dir, ref, url, logger, df_full, df, no, new_doc_c
                         numbers.append(i)
 
             elif 'Introduction' in text_content:
-
                 # нужно заготовить сплиттер для Introduction
 
                 if "<h3>Introduction</h3>" in str(soup):
@@ -157,7 +164,7 @@ def get_file(download_dir, txt_dir, ref, url, logger, df_full, df, no, new_doc_c
                     # Определим номера частей с активными спецификациями и сохраним их в списке numbers
                     numbers = []
                     for i in range(len(h_abstract)):
-                        if len(re.findall("<h3>Introduction</h3>", str(h_abstract[i]))) != 0:
+                        if len(re.findall('<h3>Introduction</h3>', str(h_abstract[i]))) != 0:
                             numbers.append(i)
 
                 elif 'id="section-1-1"' in str(soup):
@@ -180,9 +187,15 @@ def get_file(download_dir, txt_dir, ref, url, logger, df_full, df, no, new_doc_c
                 for number in numbers:
                     paragrafs = BeautifulSoup(results[number + 1], 'lxml').find_all(re.compile('p|li'))
                     for p in paragrafs:
-                        # print(p)
-                        if str(p.text) != '' and (not ('href' in str(p))):
-                            abstracts.append(p.text)
+
+                        if str(p.text) != '':
+                            if not ('<span>' in str(p)):
+                                abstracts.append(
+                                    p.text.replace('\n', ' ').replace('\t', ' ').replace('\r', ' ').replace("¶", " "))
+                            elif p.find_all('span'):
+                                abstracts.append(
+                                    p.text.replace('\n', ' ').replace('\t', ' ').replace('\r', ' ').replace("¶", " "))
+
                 abstract = ' '.join(abstracts)
 
             else:
@@ -199,7 +212,7 @@ def get_file(download_dir, txt_dir, ref, url, logger, df_full, df, no, new_doc_c
                 divs = soup.find_all(id=re.compile('toc'))
 
             else:
-                divs = [] # toc не найден
+                divs = []  # toc не найден
 
             for div in divs:
                 toc = toc.join(str(div.text))
@@ -245,6 +258,7 @@ def get_file(download_dir, txt_dir, ref, url, logger, df_full, df, no, new_doc_c
             load_flag = True
 
             # вносим записи в сеансовый и общий датафремы
+            print(len(abstract))
             df_full.loc[len(df_full.index)] = [no, f_name, content_length, last_modified, abstract, ref, local_link,
                                                load_date, '']
             df.loc[len(df_full.index)] = [no, f_name, content_length, last_modified, abstract, ref, local_link,
